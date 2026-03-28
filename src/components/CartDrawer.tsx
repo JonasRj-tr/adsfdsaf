@@ -1,15 +1,16 @@
 import { X, Minus, Plus, ShoppingBag, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCartStore } from '../store/cartStore';
+import { useSettingsStore } from '../store/settingsStore';
 import { useState } from 'react';
 import { CheckoutModal } from './CheckoutModal';
 
 export function CartDrawer() {
   const { isCartOpen, toggleCart, items, updateQuantity, removeItem, getTotal } = useCartStore();
+  const deliveryFee = useSettingsStore(state => state.deliveryFee);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
   const total = getTotal();
-  const deliveryFee = 5; // Fixed delivery fee for now
 
   return (
     <>

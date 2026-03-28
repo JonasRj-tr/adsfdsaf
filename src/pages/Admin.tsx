@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Layout } from '../components/Layout';
-import { Clock, CheckCircle2, Truck, Check, RefreshCw, Plus, Package, Trash2, Edit2, LogOut, Lock } from 'lucide-react';
+import { Clock, CheckCircle2, Truck, Check, RefreshCw, Plus, Package, Trash2, Edit2, LogOut, Lock, Settings } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Product, menu as hardcodedMenu } from '../data/menu';
 import { useAuthStore } from '../store/authStore';
@@ -37,8 +37,13 @@ export function Admin() {
   const [products, setProducts] = useState<Product[]>([]);
   const [deletedProducts, setDeletedProducts] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'pedidos' | 'produtos'>('pedidos');
+  const [activeTab, setActiveTab] = useState<'pedidos' | 'produtos' | 'configuracoes'>('pedidos');
   
+  // Settings state
+  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [deliveryFee, setDeliveryFee] = useState('0');
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+
   // Product form state
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [newProduct, setNewProduct] = useState({
@@ -88,12 +93,38 @@ export function Admin() {
       console.error("Error fetching deleted products:", error);
     });
 
+    const unsubscribeSettings = onSnapshot(doc(db, 'settings', 'store'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setWhatsappNumber(data.whatsappNumber || '');
+        setDeliveryFee(data.deliveryFee?.toString() || '0');
+      }
+    });
+
     return () => {
       unsubscribeOrders();
       unsubscribeProducts();
       unsubscribeDeleted();
+      unsubscribeSettings();
     };
   }, [isAuthenticated]);
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingSettings(true);
+    try {
+      await setDoc(doc(db, 'settings', 'store'), {
+        whatsappNumber,
+        deliveryFee: parseFloat(deliveryFee) || 0
+      }, { merge: true });
+      toast.success('Configurações salvas com sucesso!');
+    } catch (error) {
+      console.error("Error saving settings:", error);
+      toast.error('Erro ao salvar configurações');
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
 
   const updateStatus = async (order: Order, newStatus: Order['status']) => {
     try {
@@ -319,6 +350,12 @@ export function Admin() {
             >
               Produtos
             </button>
+            <button 
+              onClick={() => setActiveTab('configuracoes')}
+              className={`px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'configuracoes' ? 'bg-zinc-800 shadow-sm text-white border border-white/10' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              Configurações
+            </button>
           </div>
           <button
             onClick={logout}
@@ -330,7 +367,69 @@ export function Admin() {
         </div>
       </div>
 
-      {activeTab === 'pedidos' ? (
+      {activeTab === 'configuracoes' ? (
+        <div className="space-y-8">
+          <div className="bg-zinc-900/50 backdrop-blur-sm rounded-3xl border border-white/10 shadow-sm p-6 md:p-8 max-w-2xl mx-auto">
+            <div className="mb-6 flex items-center gap-3">
+              <div className="w-10 h-10 bg-zinc-800 text-zinc-400 rounded-xl flex items-center justify-center border border-white/10">
+                <Settings className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-xl font-display font-bold text-white">
+                  Configurações da Loja
+                </h3>
+                <p className="text-sm text-zinc-400">
+                  Ajuste a taxa de entrega e o número do WhatsApp para receber pedidos.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveSettings} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-1">Número do WhatsApp (com DDD)</label>
+                <input
+                  required
+                  type="text"
+                  value={whatsappNumber}
+                  onChange={(e) => setWhatsappNumber(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-zinc-800/50 border border-white/10 text-white focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all outline-none placeholder:text-zinc-600"
+                  placeholder="Ex: 11999999999"
+                />
+                <p className="text-xs text-zinc-500 mt-1">Apenas números. Ex: 11987654321</p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-1">Taxa de Entrega (R$)</label>
+                <input
+                  required
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={deliveryFee}
+                  onChange={(e) => setDeliveryFee(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-zinc-800/50 border border-white/10 text-white focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all outline-none placeholder:text-zinc-600"
+                  placeholder="Ex: 5.00"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSavingSettings}
+                className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 disabled:from-zinc-700 disabled:to-zinc-700 disabled:text-zinc-500 text-white font-display font-bold py-4 px-6 rounded-xl transition-all shadow-lg shadow-red-600/20 flex items-center justify-center gap-2 border border-red-500/50 disabled:border-white/5 mt-4"
+              >
+                {isSavingSettings ? (
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <Check className="w-5 h-5" />
+                    Salvar Configurações
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : activeTab === 'pedidos' ? (
         <div className="grid gap-6">
           {orders.length === 0 ? (
             <div className="bg-zinc-900/50 p-12 rounded-3xl border border-white/10 text-center backdrop-blur-sm">

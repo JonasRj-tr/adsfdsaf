@@ -1,12 +1,29 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { ShoppingBag, Settings } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
+import { useSettingsStore } from '../store/settingsStore';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { CartDrawer } from './CartDrawer';
 import { Link } from 'react-router-dom';
 
 export function Layout({ children }: { children: ReactNode }) {
   const { items, toggleCart } = useCartStore();
+  const setSettings = useSettingsStore(state => state.setSettings);
   
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'store'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setSettings({
+          whatsappNumber: data.whatsappNumber || '5511999999999',
+          deliveryFee: data.deliveryFee !== undefined ? data.deliveryFee : 5,
+        });
+      }
+    });
+    return () => unsub();
+  }, [setSettings]);
+
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (

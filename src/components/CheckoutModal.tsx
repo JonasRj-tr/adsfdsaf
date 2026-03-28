@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2 } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
+import { useSettingsStore } from '../store/settingsStore';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import toast from 'react-hot-toast';
@@ -14,6 +15,7 @@ interface CheckoutModalProps {
 
 export function CheckoutModal({ isOpen, onClose, total }: CheckoutModalProps) {
   const { items, clearCart } = useCartStore();
+  const whatsappNumber = useSettingsStore(state => state.whatsappNumber);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     nome: '',
@@ -69,7 +71,11 @@ ${formattedItems.join('\n')}
 *TOTAL: R$ ${total.toFixed(2)}*
       `.trim();
 
-      const waUrl = `https://wa.me/5511999999999?text=${encodeURIComponent(waMessage)}`;
+      let cleanNumber = whatsappNumber.replace(/\D/g, '');
+      if (!cleanNumber.startsWith('55') && cleanNumber.length <= 11) {
+        cleanNumber = '55' + cleanNumber;
+      }
+      const waUrl = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(waMessage)}`;
       
       clearCart();
       onClose();
